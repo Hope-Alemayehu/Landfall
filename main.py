@@ -7,6 +7,9 @@ Press Run, pick a backend in the Select QPU dialog, and set the options in Run s
             kyiv) and "ionq" is the all-to-all trapped-ion model
   hardware_check  run the best and worst strategy side by side on the selected backend (one job)
 """
+import warnings
+warnings.filterwarnings("ignore", category=SyntaxWarning)
+
 import json
 import sys
 
@@ -49,7 +52,7 @@ def _send(name, payload):
             fh.write(payload)
 
 
-def main(circuit: str = "adder", qasm: str = "", devices: str = "kolkata,sherbrooke,fez,miami,ionq", hardware_check: bool = True, shots: int = 2000):
+def main(circuit: str = "adder", qasm: str = "", devices: str = "kolkata,sherbrooke,fez,miami,ionq", hardware_check: bool = True, shots: int = 300):
     print("LANDFALL: does your optimization survive the hardware?\n")
     qc = circuits.load(circuit, qasm)
     desc = circuits.PRESETS.get(qc.name, "custom OpenQASM circuit")
@@ -82,18 +85,20 @@ def main(circuit: str = "adder", qasm: str = "", devices: str = "kolkata,sherbro
         else:
             print(f"\nUsing the ranking for {w['best']['device_label']}: best = {w['best']['strategy_label']}, "
                   f"worst = {w['worst']['strategy_label']}")
+            print("  Running the noisy simulation in your browser; this can take a few minutes on IBM noise models.")
             check = hardware.run(result, a, b, be, shots=shots)
             _show(report.plot_hardware(check), f"{qc.name}_hardware.png")
             gap = check["a_fidelity"] - check["b_fidelity"]
-            if abs(gap) < 0.01:
-                print(f"  The measured gap ({gap:+.3f}) is within shot noise at {shots} shots: "
+            noise = 0.5 / shots ** 0.5
+            if abs(gap) < noise:
+                print(f"  The measured gap ({gap:+.3f}) is within shot noise ({noise:.3f} at {shots} shots): "
                       "on this backend the two strategies are indistinguishable.")
             elif gap > 0:
                 print("  The predicted winner also measured closer to the ideal output.")
             else:
                 print("  The measured result disagrees with the prediction; the estimate ignores idle "
                       "decoherence and crosstalk, and shot noise matters at small gaps.")
-            if check["a_fidelity"] > 0.99 and check["b_fidelity"] > 0.99:
+            if check["a_fidelity"] > 1 - 2 * noise and check["b_fidelity"] > 1 - 2 * noise:
                 print("  Both are near 1.0: either this backend is noiseless (pick an IBM noise model or an "
                       "IonQ simulator) or the circuit is too small for noise to separate the strategies.")
     elif hardware_check:

@@ -37,11 +37,11 @@ Landfall makes that visible. It sends one circuit through several optimization s
 Five preset circuits, four strategies, five devices. Every optimized circuit is verified exactly equivalent to its original.
 
 - **The best strategy depends on the hardware.** On the 2+2-bit ripple-carry adder, ZX teleport wins on IBM Kolkata (+4.5 points of estimated success over Qiskit O3), IBM Miami and IonQ Forte. Qiskit O3 wins on IBM Sherbrooke and IBM Fez. On a random Clifford+T circuit, Qiskit O3 wins on all three heavy-hex devices while ZX teleport wins on the square lattice and all-to-all devices.
-- **Aggressive optimization can backfire badly.** ZX full extraction rebuilds circuits with more CNOTs, and routing multiplies them. On the adder it goes from 44 to 91 two-qubit gates on Kolkata, dropping estimated success from 0.70 to 0.49.
+- **Aggressive optimization can backfire badly.** ZX full extraction rebuilds circuits with more CNOTs, and routing multiplies them. On the adder it goes from 44 (Qiskit O3) to 71 two-qubit gates on Kolkata, dropping estimated success from 0.70 to 0.61.
 - **ZX teleport is a safe T-count win.** It cuts non-Clifford phases by 40% on QFT (30 to 18) and the adder (28 to 16) without adding two-qubit gates.
 - **Routing is the hidden cost.** On heavy-hex devices, up to 58% of two-qubit gates are SWAP overhead. On all-to-all hardware it is zero, so strategy rankings move closer together.
-- **Gate count is not the whole story.** On IBM Miami, QFT through ZX full wins with 48 two-qubit gates over Qiskit O3's 36, because the layout placed it on better-calibrated qubits.
-- **The measurements agree.** On the IBM Fez noise model, the adder's predicted winner (Qiskit O3) measured 0.939 Hellinger fidelity to the ideal output against 0.838 for the predicted loser (ZX full).
+- **Gate count is not the whole story.** On the Toffoli, Qiskit O1 beats Qiskit O3 on IBM Sherbrooke and IBM Fez despite using 9 two-qubit gates instead of 7, because its layout landed on better-calibrated qubits.
+- **The measurements agree.** On Qollab's IBM Fez noise model, the adder's predicted winner (Qiskit O3) measured 0.934 Hellinger fidelity to the ideal output against 0.896 for the predicted loser (ZX full), at 2000 shots. At the default of 300 shots both values read lower (fewer shots lower both equally), but the order holds.
 
 ## How to run
 
@@ -74,7 +74,7 @@ circuit ──► normalize ──► 4 strategies ──► equivalence check
 - **Routing overhead** is the 2Q count on the real device minus the 2Q count for the same strategy, gate set and optimization level with every qubit pair connected.
 - **Estimated success** is the product of (1 - error) over every compiled gate and every readout, using the device's calibration data. It is a standard first-order figure of merit and ignores idle decoherence and crosstalk.
 - **The one-job hardware check.** IonQ backends accept one job per run, so both circuits go into one: strategy A on qubits 0 to n-1, strategy B on qubits n to 2n-1. Both start from the same random product state so their ideal outputs are identical and non-trivial. Each half's measured distribution is compared with the ideal distribution using Hellinger fidelity.
-- The two halves are compiled together, so the hardware check only compares strategies that differ in the circuit itself (Qiskit O3, ZX teleport, ZX full), not in the Qiskit optimization level. Gaps under 0.01 are reported as shot noise.
+- The two halves are compiled together, so the hardware check only compares strategies that differ in the circuit itself (Qiskit O3, ZX teleport, ZX full), not in the Qiskit optimization level. Gaps under 0.5/sqrt(shots) are reported as shot noise.
 - **Ties.** A challenger must beat Qiskit O3 by at least 0.5 points of estimated success to be called the winner.
 
 ## Code
@@ -98,6 +98,7 @@ circuit ──► normalize ──► 4 strategies ──► equivalence check
 - The success estimate ignores idle errors, so it undervalues depth reductions.
 - Exact equivalence checking limits circuits to 12 qubits.
 - Results depend on the transpiler seed. Landfall fixes it for reproducibility.
+- PyZX circuit extraction is not fully deterministic across Python versions, so ZX full counts can differ slightly between environments; the rankings do not change.
 
 ## Prior work and credits
 
