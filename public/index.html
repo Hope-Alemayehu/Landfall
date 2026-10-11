@@ -45,14 +45,15 @@
         <div class="dropzone" id="dropzone">
           <textarea id="qasm" spellcheck="false" autocomplete="off" aria-label="OpenQASM 2 or 3 source"
             placeholder="OPENQASM 2.0;&#10;include &quot;qelib1.inc&quot;;&#10;qreg q[3];&#10;h q[0];&#10;cx q[0],q[1];&#10;t q[1];&#10;ccx q[0],q[1],q[2];"></textarea>
-          <p class="hint">OpenQASM 2 or 3, up to 12 qubits. Drop a <code>.qasm</code> file here, or
+          <p class="hint">Presets load their code here; edit it freely. OpenQASM 2 or 3, up to 12 qubits. Drop a <code>.qasm</code> file here, or
             <label class="file-pick">choose a file<input type="file" id="qasm-file" accept=".qasm,.txt,text/plain"></label>.</p>
         </div>
       </div>
       <div class="tabpanel" id="panel-qiskit" role="tabpanel" aria-labelledby="tab-qiskit" hidden>
         <textarea id="qiskit" spellcheck="false" autocomplete="off" aria-label="Qiskit circuit code"
-          aria-describedby="qiskit-hint"></textarea>
-        <p class="hint" id="qiskit-hint">The code is read, never run: one <code>QuantumCircuit(n)</code>, standard gate
+          aria-describedby="qiskit-hint"
+          placeholder="from qiskit import QuantumCircuit&#10;&#10;qc = QuantumCircuit(3)&#10;qc.h(0)&#10;for i in range(2):&#10;    qc.cx(i, i + 1)"></textarea>
+        <p class="hint" id="qiskit-hint">Presets load their Qiskit code here too. The code is read, never run: one <code>QuantumCircuit(n)</code>, standard gate
           calls, <code>for i in range(...)</code> loops and arithmetic with <code>pi</code>.</p>
         <details class="subset">
           <summary>Supported Qiskit subset</summary>
@@ -117,7 +118,8 @@
         <label class="check"><input type="checkbox" id="whole-chip"> <span>Show whole chip</span></label>
       </div>
       <figure class="chip-figure">
-        <svg class="chip" id="chip" role="img" aria-labelledby="chip-caption"></svg>
+        <p class="chip-scope" id="chip-scope" aria-live="polite"></p>
+        <svg class="chip" id="chip" role="img" aria-labelledby="chip-scope chip-caption"></svg>
         <figcaption id="chip-caption" class="chip-caption"></figcaption>
       </figure>
       <div class="chip-legend" aria-hidden="true">

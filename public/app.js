@@ -18,27 +18,15 @@
   ];
   const DEVICE = Object.fromEntries(DEVICES.map((d) => [d.key, d]));
   const FALLBACK_PRESETS = ["qft5", "toffoli", "adder", "grover3", "random_ct"].map((name) => ({ name, description: "" }));
-  const QISKIT_EXAMPLE = [
-    "from qiskit import QuantumCircuit",
-    "from math import pi",
-    "",
-    "# GHZ state, then a phase on every qubit",
-    "qc = QuantumCircuit(5)",
-    "qc.h(0)",
-    "for i in range(4):",
-    "    qc.cx(i, i + 1)",
-    "for i in range(5):",
-    "    qc.rz(pi / 2 ** (i + 1), i)",
-    "qc.ccx(0, 2, 4)",
-    "qc.measure_all()",
-  ].join("\n");
   const MAX_FILE_BYTES = 200 * 1024;
   const U = 40; // chip-view pixels per grid unit
   const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   const state = {
-    source: "preset", // "preset" | "qasm" | "qiskit"
-    preset: "adder",
+    tab: "qasm", // the editor in use: "qasm" | "qiskit"
+    preset: "adder", // the selected chip; null once its code is edited
+    lastPreset: "adder", // the chip picked most recently, so typing its code back selects it again
+    presets: {}, // name -> { description, qasm, qiskit } from presets.json
     devices: new Set(DEVICES.map((d) => d.key)),
     result: null,
     sel: null, // { device, strategy }
@@ -186,24 +174,54 @@
   }
 
   async function loadPresets() {
+    // a static file (scripts/export_presets.py), so loading the page never wakes the function
     let presets = FALLBACK_PRESETS;
     try {
-      const res = await fetch("/api/presets");
+      const res = await fetch("presets.json");
       if (res.ok) presets = await res.json();
-    } catch (_) { /* the fallback list still works */ }
+    } catch (_) { /* names only: the chips still analyze their preset */ }
+    state.presets = Object.fromEntries(presets.map((p) => [p.name, p]));
     $("presets").replaceChildren(...presets.map((p) => h("button", {
       type: "button", class: "pill", "data-preset": p.name, title: p.description || null,
-      "aria-pressed": state.source === "preset" && state.preset === p.name,
-      onclick: () => { state.source = "preset"; state.preset = p.name; syncSource(); analyze(); },
+      "aria-pressed": state.preset === p.name,
+      onclick: () => { choosePreset(p.name); analyze(); },
     }, p.name)));
+    if (state.preset) showPreset(state.preset); // first load: the adder's code, matching the example below
+    syncControls();
   }
 
-  function syncSource() {
-    for (const chip of document.querySelectorAll(".pill")) {
-      chip.setAttribute("aria-pressed", state.source === "preset" && chip.dataset.preset === state.preset);
-    }
-    const what = state.source === "preset" ? state.preset : state.source === "qasm" ? "QASM" : "Qiskit code";
-    $("analyze").textContent = `Analyze ${what}`;
+  function presetText(name, tab) {
+    const p = name && state.presets[name];
+    return p && typeof p[tab] === "string" ? p[tab] : null;
+  }
+
+  function showPreset(name) {
+    const text = presetText(name, state.tab);
+    if (text == null) return;
+    $(state.tab).value = text;
+    $(state.tab).scrollTop = 0;
+  }
+
+  function isPresetCode(text, tab) {
+    return Object.values(state.presets).some((p) => p[tab] === text);
+  }
+
+  function matchEditor() {
+    // the chip is selected exactly when the visible editor holds that preset's unedited code
+    const text = presetText(state.lastPreset, state.tab);
+    if (text == null) return; // no preset code loaded: leave the selection alone
+    state.preset = $(state.tab).value === text ? state.lastPreset : null;
+  }
+
+  function choosePreset(name) {
+    state.preset = state.lastPreset = name;
+    showPreset(name);
+    syncControls();
+  }
+
+  function syncControls() {
+    for (const chip of document.querySelectorAll(".pill")) chip.setAttribute("aria-pressed", chip.dataset.preset === state.preset);
+    $("analyze").textContent = `Analyze ${state.preset || (state.tab === "qasm" ? "QASM" : "Qiskit code")}`;
   }
 
   function selectTab(name, focus) {
@@ -214,15 +232,18 @@
       $(`panel-${t}`).hidden = !on;
       if (on && focus) tab.focus();
     }
-    state.source = name;
-    syncSource();
+    state.tab = name;
+    // a selected preset follows you into the other form, but never over code you typed there
+    const current = $(name).value;
+    if (state.preset && (!current.trim() || isPresetCode(current, name))) showPreset(state.preset);
+    matchEditor();
+    syncControls();
   }
 
   function initInput() {
-    $("qiskit").value = QISKIT_EXAMPLE;
     for (const t of ["qasm", "qiskit"]) {
       $(`tab-${t}`).addEventListener("click", () => selectTab(t));
-      $(t).addEventListener("input", () => { state.source = t; syncSource(); });
+      $(t).addEventListener("input", () => { matchEditor(); syncControls(); }); // edits deselect the preset
     }
     $("tab-qasm").parentElement.addEventListener("keydown", (e) => {
       if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
@@ -252,7 +273,14 @@
   function readFile(file) {
     if (file.size > MAX_FILE_BYTES) return showError(`${file.name} is larger than 200 KB.`);
     const reader = new FileReader();
-    reader.onload = () => { $("qasm").value = reader.result; selectTab("qasm"); setStatus(`Loaded ${file.name}.`); };
+    reader.onload = () => {
+      state.preset = null;
+      selectTab("qasm");
+      $("qasm").value = reader.result;
+      matchEditor();
+      syncControls();
+      setStatus(`Loaded ${file.name}.`);
+    };
     reader.onerror = () => showError(`Could not read ${file.name}.`);
     reader.readAsText(file);
   }
@@ -272,17 +300,20 @@
   async function analyze() {
     if (state.busy) return;
     const body = { devices: DEVICES.filter((d) => state.devices.has(d.key)).map((d) => d.api) };
-    if (state.source === "preset") body.preset = state.preset;
+    // the preset's own code, unedited: send the preset itself so the numbers match it exactly
+    const text = $(state.tab).value, own = presetText(state.preset, state.tab);
+    if (state.preset && (own == null || text === own)) body.preset = state.preset;
     else {
-      const text = $(state.source).value.trim();
-      if (!text) return showError(state.source === "qasm" ? "Paste OpenQASM, drop a .qasm file or pick a preset." : "Paste Qiskit code or pick a preset.");
-      body[state.source] = text;
+      if (!text.trim()) return showError(state.tab === "qasm" ? "Paste OpenQASM, drop a .qasm file or pick a preset." : "Paste Qiskit code or pick a preset.");
+      body[state.tab] = text;
+      state.preset = null;
+      syncControls();
     }
     state.busy = true;
     $("analyze").disabled = true;
     $("error").hidden = true;
     $("results").classList.add("is-stale");
-    const what = body.preset || (state.source === "qasm" ? "your QASM" : "your Qiskit code");
+    const what = body.preset || (state.tab === "qasm" ? "your QASM" : "your Qiskit code");
     setStatus(`Analyzing ${what} on ${plural(body.devices.length, "device")}. The first request after a quiet spell takes a few extra seconds while the server starts.`, true);
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 120000);
@@ -316,7 +347,10 @@
 
   // render ------------------------------------------------------------------------------------
   function defaultSelection(r) {
-    // the device where the strategies differ most, at its best strategy
+    // IBM Fez first: a large chip with a small footprint makes the clearest first chip view
+    const fez = r.best.fake_fez || BASELINE;
+    if (rowFor("fake_fez", fez)) return { device: "fake_fez", strategy: fez };
+    // otherwise the device where the strategies differ most, at its best strategy
     let pick = null, spread = -1;
     for (const d of r.devices) {
       const ok = r.rows.filter((x) => x.device === d).map((x) => x.success);
@@ -486,6 +520,7 @@
     let geo;
     try { geo = await geometry(sel.device); } catch (_) {
       $("chip").replaceChildren();
+      $("chip-scope").textContent = "";
       $("chip-caption").textContent = "The chip map for this device is not available.";
       return;
     }
@@ -495,15 +530,22 @@
     const newDevice = chip.device !== geo.key;
     if (newDevice) { buildChipBase(geo); chip.view = null; }
 
+    const P = chip.points;
     const usedSet = new Set(row.qubits_used);
+    const usedPoints = row.qubits_used.map((q) => P[q]);
+    const zoom = !state.wholeChip && usedPoints.length > 0;
+    const idleNumbers = zoom || geo.num_qubits <= 30; // small enough on screen to stay readable
     chip.qubits.forEach((c, i) => {
       const on = usedSet.has(i);
       c.classList.toggle("used", on);
-      c.setAttribute("r", on ? 12 : 6); // the CSS r property animates it where supported
+      c.classList.toggle("numbered", !on && idleNumbers);
+      c.setAttribute("r", on ? 12 : idleNumbers ? 9 : 6); // the CSS r property animates it where supported
     });
-    chip.labels.forEach((t, i) => t.classList.toggle("shown", usedSet.has(i)));
+    chip.labels.forEach((t, i) => {
+      t.classList.toggle("shown", usedSet.has(i));
+      t.classList.toggle("idle", !usedSet.has(i) && idleNumbers);
+    });
 
-    const P = chip.points;
     const usage = Object.entries(row.edge_usage).map(([k, n]) => [k.split("-").map(Number), n]).sort((a, b) => a[1] - b[1]);
     const max = Math.max(1, ...usage.map((u) => u[1]));
     const lines = [], hits = [];
@@ -539,17 +581,20 @@
     chip.used.replaceChildren(...lines);
     chip.hits.replaceChildren(...hits);
 
-    const usedPoints = row.qubits_used.map((q) => P[q]);
-    const zoom = !state.wholeChip && usedPoints.length > 0;
     const target = zoom ? keepOnChip(viewFor(usedPoints.concat(apexes), U * 1.3, U * 7, U * 4), P, U * 0.9) : viewFor(P, U * 0.9, 0, 0);
     setView(target, animate && !newDevice);
 
     const d = DEVICE[row.device] || { label: row.device_label, family: row.family, native: row.native_2q, topology: row.topology };
     const busiest = usage.length ? usage[usage.length - 1] : null;
+    const used = row.qubits_used.length;
+    $("chip-scope").textContent = zoom
+      ? `Zoomed to the ${plural(used, "qubit")} the circuit uses on ${d.label} (${geo.num_qubits} qubits). ` +
+        "Check 'Show whole chip' to see the full device."
+      : `Showing all ${geo.num_qubits} qubits of ${d.label}; the circuit uses ${used} (highlighted).`;
     $("chip-caption").replaceChildren(
       h("strong", { text: `${d.label}, ${label(row.strategy)}. ` }),
       `${d.family}, native ${d.native} gate, ${d.topology}. ${plural(row.two_q, "two-qubit gate")}, ` +
-      `${row.routing_2q} of them routing overhead; ${row.qubits_used.length} of ${geo.num_qubits} qubits used` +
+      `${row.routing_2q} of them routing overhead` +
       (busiest ? `; busiest coupler ${busiest[0][0]}-${busiest[0][1]} with ${plural(busiest[1], "gate")}.` : "."));
   }
 
@@ -704,7 +749,7 @@
   renderDeviceToggles();
   initInput();
   initOutputs();
-  syncSource();
+  syncControls();
   loadPresets();
   loadExample();
 

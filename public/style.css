@@ -119,7 +119,7 @@ kbd {
 .tabs [role="tab"]:hover { color: var(--ink); }
 
 textarea {
-  display: block; width: 100%; min-height: 168px; resize: vertical;
+  display: block; width: 100%; height: 300px; min-height: 168px; resize: vertical; overflow: auto;
   font: 400 0.88rem/1.55 var(--mono); color: var(--ink);
   background: #fff; border: 1px solid var(--rule-2); border-radius: 10px; padding: 12px 14px;
 }
@@ -226,6 +226,7 @@ textarea:focus-visible { outline-offset: 0; }
   .g-head .long, .g-base .long { display: none; }
   .g-head .abbr, .g-base .abbr { display: inline; }
   .devices { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  textarea { height: 260px; }
   .device-toggle { padding: 9px 10px; gap: 8px; }
   .device-toggle .topo { width: 24px; height: 24px; }
   .device-toggle .name { font-size: 0.88rem; }
@@ -264,6 +265,9 @@ textarea:focus-visible { outline-offset: 0; }
 .chip .ql { font: 600 10px var(--sans); fill: #fff; text-anchor: middle; dominant-baseline: central; opacity: 0; transition: opacity 0.3s; pointer-events: none; }
 .chip .ql.shown { opacity: 1; }
 .chip .ql3 { font-size: 8.5px; }
+.chip .q.numbered { r: 9px; }
+.chip .ql.idle { opacity: 1; fill: var(--muted); font-size: 7.5px; font-weight: 500; }
+.chip .ql3.idle { font-size: 6.5px; }
 .chip .hit { fill: transparent; stroke: transparent; cursor: help; }
 .chip .hit-line { fill: none; pointer-events: stroke; }
 .chip .ring-guide { fill: none; stroke: var(--rule); stroke-width: 2; stroke-dasharray: none; }
@@ -272,6 +276,7 @@ textarea:focus-visible { outline-offset: 0; }
   .chip .q, .chip .ql { transition: none; }
   .chip .used-edge { animation: none; }
 }
+.chip-scope { margin: 0 0 8px; font-size: 0.92rem; color: var(--ink); }
 .chip-caption { margin-top: 10px; font-size: 0.92rem; color: var(--ink-2); }
 .chip-caption strong { color: var(--ink); font-weight: 600; }
 .chip-legend { display: flex; flex-wrap: wrap; gap: 8px 18px; margin-top: 10px; font-size: 0.82rem; color: var(--ink-2); }

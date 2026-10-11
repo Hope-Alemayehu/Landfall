@@ -17,3 +17,4 @@
 - Tests: `python -m pytest tests`
 - Website locally: `python scripts/dev_server.py`, then open http://127.0.0.1:8000
 - After changing the analysis: `python scripts/export_example.py` (refreshes `public/data/adder.json`)
+- After changing a preset: `python scripts/export_presets.py` (refreshes `public/presets.json`, the code shown in the editor)

@@ -60,7 +60,7 @@ The console shows the tables and the explanation, followed by two charts (gate c
 
 The same analysis runs as a website. Pick a preset or paste a circuit, choose devices, and Landfall shows the verdict, a strategy-by-device grid of estimated success against Qiskit O3, a chip view (the selected device's qubit map with the qubits the compiled circuit uses and its busiest couplers lit up), two-qubit gate cost with routing overhead hatched, before and after metrics per strategy, the optimized and compiled QASM, and the same JSON report Qollab produces.
 
-- **Inputs.** OpenQASM 2 or 3 (paste it or drop a `.qasm` file), or Qiskit code in the Qiskit tab; up to 12 qubits and 5,000 gates.
+- **Inputs.** OpenQASM 2 or 3 (paste it or drop a `.qasm` file), or Qiskit code in the Qiskit tab; up to 12 qubits and 5,000 gates. Clicking a preset loads its code into the editor in either form, ready to edit; unedited preset code is analyzed as the preset itself, so its numbers match exactly.
 - **Qiskit code is never executed.** `landfall/qiskit_input.py` parses it with Python's `ast` module and interprets an allowlist: one `QuantumCircuit`, standard gate calls, `range` loops, arithmetic with `pi` and `QFTGate`. Anything else is rejected with its line number.
 - **Instant first load.** The page opens on a precomputed analysis of the adder preset (`public/data/adder.json`); Analyze calls the live API.
 - **The hardware check stays on Qollab.** The website estimates; Qollab measures.
@@ -74,7 +74,7 @@ pip install -r requirements.txt fastapi uvicorn
 python scripts/dev_server.py       (then open http://127.0.0.1:8000)
 ```
 
-Tests: `pip install pytest`, then `python -m pytest tests`. After changing the analysis, run `python scripts/export_example.py` to refresh the precomputed example (a test fails when it is stale). `python scripts/export_devices.py` regenerates the chip maps in `public/devices/`.
+Tests: `pip install pytest`, then `python -m pytest tests`. After changing the analysis, run `python scripts/export_example.py` to refresh the precomputed example, and after changing a preset, `python scripts/export_presets.py` to refresh the preset code in `public/presets.json` (tests fail when either is stale). `python scripts/export_devices.py` regenerates the chip maps in `public/devices/`.
 
 Deploy notes (Vercel):
 
