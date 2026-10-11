@@ -6,7 +6,10 @@ from . import metrics as mt
 from . import strategies as st
 
 
-def analyze(qc, device_keys: str = dv.DEFAULT_DEVICES, strategy_keys=None, seed: int = 11, log=print):
+def analyze(qc, device_keys: str = dv.DEFAULT_DEVICES, strategy_keys=None, seed: int = 11, log=print,
+            keep_compiled: bool = False):
+    """Analyze a normalized circuit. With keep_compiled, result["compiled"] maps (device, strategy) to
+    the compiled circuit (left out by default so Qollab's JSON report stays small)."""
     strategy_keys = strategy_keys or list(st.STRATEGIES)
     devs = dv.parse(device_keys)
     t0 = time.time()
@@ -22,7 +25,7 @@ def analyze(qc, device_keys: str = dv.DEFAULT_DEVICES, strategy_keys=None, seed:
             log(f"  ! {st.STRATEGIES[s][0]} failed: {exc}")
     log(f"  optimized {len(optimized)} strategies in {time.time() - t0:.1f}s")
 
-    rows = []
+    rows, compiled_circuits = [], {}
     for d in devs:
         t1 = time.time()
         if d.kind == "ibm" and qc.num_qubits > d.backend.num_qubits:
@@ -37,10 +40,13 @@ def analyze(qc, device_keys: str = dv.DEFAULT_DEVICES, strategy_keys=None, seed:
                    "strategy": s, "strategy_label": st.STRATEGIES[s][0]}
             row.update(mt.physical(compiled, unrouted))
             row["success"] = dv.success_estimate(compiled, d)
+            row.update(mt.footprint(compiled))
+            if keep_compiled:
+                compiled_circuits[(d.key, s)] = compiled
             rows.append(row)
         log(f"  compiled for {d.label:<16} ({d.native_2q}, {d.topology}) in {time.time() - t1:.1f}s")
 
-    return {
+    result = {
         "circuit": qc.name,
         "num_qubits": qc.num_qubits,
         "input": mt.logical(qc),
@@ -51,3 +57,6 @@ def analyze(qc, device_keys: str = dv.DEFAULT_DEVICES, strategy_keys=None, seed:
         "devices": [d.key for d in devs],
         "elapsed_s": round(time.time() - t0, 1),
     }
+    if keep_compiled:
+        result["compiled"] = compiled_circuits
+    return result

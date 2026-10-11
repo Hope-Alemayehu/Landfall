@@ -19,7 +19,7 @@ Landfall makes that visible. It sends one circuit through several optimization s
    | Qiskit O3 | Qiskit's heaviest optimization (the baseline to beat) |
    | ZX teleport | PyZX `teleport_reduce`: cancels and merges phases through the ZX graph but keeps the circuit's structure, then Qiskit O3 |
    | ZX full | PyZX `full_reduce` plus circuit extraction: rebuilds the circuit from its simplified graph, then Qiskit O3 |
-2. **Verify** every optimized circuit is exactly equivalent to the original (unitary comparison up to global phase).
+2. **Verify** every optimized circuit is equivalent to the original, up to global phase: by exact unitary comparison up to 6 qubits, and on 4 random input states (statevector simulation) above that.
 3. **Compile** each one for a ladder of devices, ordered by connectivity:
    | Device | Family | Native 2Q gate | Connectivity |
    |---|---|---|---|
@@ -56,6 +56,53 @@ Five preset circuits, four strategies, five devices. Every optimized circuit is 
 
 The console shows the tables and the explanation, followed by two charts (gate cost per device with routing overhead hatched, and the success-estimate change against Qiskit O3) and the hardware-check chart. A full JSON report is offered as a download.
 
+## Website
+
+The same analysis runs as a website. Pick a preset or paste a circuit, choose devices, and Landfall shows the verdict, a strategy-by-device grid of estimated success against Qiskit O3, a chip view (the selected device's qubit map with the qubits the compiled circuit uses and its busiest couplers lit up), two-qubit gate cost with routing overhead hatched, before and after metrics per strategy, the optimized and compiled QASM, and the same JSON report Qollab produces.
+
+- **Inputs.** OpenQASM 2 or 3 (paste it or drop a `.qasm` file), or Qiskit code in the Qiskit tab; up to 12 qubits and 5,000 gates.
+- **Qiskit code is never executed.** `landfall/qiskit_input.py` parses it with Python's `ast` module and interprets an allowlist: one `QuantumCircuit`, standard gate calls, `range` loops, arithmetic with `pi` and `QFTGate`. Anything else is rejected with its line number.
+- **Instant first load.** The page opens on a precomputed analysis of the adder preset (`public/data/adder.json`); Analyze calls the live API.
+- **The hardware check stays on Qollab.** The website estimates; Qollab measures.
+
+Run it locally:
+
+```
+python -m venv .venv
+.venv\Scripts\activate             (macOS or Linux: source .venv/bin/activate)
+pip install -r requirements.txt fastapi uvicorn
+python scripts/dev_server.py       (then open http://127.0.0.1:8000)
+```
+
+Tests: `pip install pytest`, then `python -m pytest tests`. After changing the analysis, run `python scripts/export_example.py` to refresh the precomputed example (a test fails when it is stale). `python scripts/export_devices.py` regenerates the chip maps in `public/devices/`.
+
+Deploy notes (Vercel):
+
+- One Vercel project from this repo, FastAPI framework preset. `api/index.py` is the function; `public/` is served from the CDN.
+- `pyproject.toml` holds the website's pinned dependencies and `tool.vercel.entrypoint = "api.index:app"`. Vercel reads it instead of `requirements.txt`, which stays Qollab's, and never treats `main.py` as the web app.
+- `vercel.json` sets a 60 second maximum duration and keeps tests and scripts out of the function.
+- The function bundle is about 290 MB of the 500 MB Python limit (about 365 MB if Vercel adds precompiled bytecode).
+- Vercel caps a function response at 4.5 MB, so for very large circuits the compiled QASM is left out of the response and the page says so.
+
+## Use from Python
+
+```python
+from qiskit import QuantumCircuit
+from landfall import analyze
+
+qc = QuantumCircuit(3)
+qc.h(0)
+qc.cx(0, 1)
+qc.ccx(0, 1, 2)
+
+report = analyze(qc, devices=["fez", "ionq"])   # default: all five devices
+print(report["verdict"][0])
+for row in report["rows"]:
+    print(row["device_label"], row["strategy_label"], row["two_q"], round(row["success"], 3))
+```
+
+`analyze(qc)` takes any `QuantumCircuit` up to 12 qubits (measurements, barriers and resets are ignored). The report has the fields of Qollab's JSON report (`input`, `logical`, `equivalent`, `rows`, `verdict` and so on) plus `optimized` (strategy to optimized `QuantumCircuit`) and `compiled` ((device, strategy) to compiled `QuantumCircuit`). Each row also lists `qubits_used` and `edge_usage` (two-qubit gates per physical coupler), which the chip view draws. Run it from the repo root after `pip install -r requirements.txt`.
+
 ## How it works
 
 ```
@@ -90,13 +137,18 @@ circuit ──► normalize ──► 4 strategies ──► equivalence check
 | `landfall/verdict.py` | Plain-language findings |
 | `landfall/report.py` | Tables and charts |
 | `landfall/hardware.py` | One-job side-by-side hardware check |
+| `landfall/qiskit_input.py` | Safe reader for the website's Qiskit tab |
+| `api/index.py` | Web API (FastAPI, one Vercel Function) |
+| `public/` | Website: `index.html`, `app.js`, `style.css`, chip maps and the precomputed example |
+| `scripts/` | Local dev server, data exports and the local hardware-check runner |
+| `tests/` | Equivalence check, Qiskit-tab reader and example-data tests |
 
 ## Limitations
 
 - IBM error rates come from the calibration snapshots shipped with `qiskit-ibm-runtime` fake backends, not live data.
 - The IonQ Forte model uses nominal fidelities (1Q error 2e-4, 2Q error 4e-3, readout error 5e-3), editable in `landfall/devices.py`. IonQ also compiles circuits again on its side.
 - The success estimate ignores idle errors, so it undervalues depth reductions.
-- Exact equivalence checking limits circuits to 12 qubits.
+- Circuits are limited to 12 qubits. Up to 6 qubits equivalence is checked exactly; above that it is checked on 4 random input states, which catches any real difference with overwhelming probability but is not a proof.
 - Results depend on the transpiler seed. Landfall fixes it for reproducibility.
 - PyZX circuit extraction is not fully deterministic across Python versions, so ZX full counts can differ slightly between environments; the rankings do not change.
 

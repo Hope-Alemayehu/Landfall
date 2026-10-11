@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 from matplotlib.colors import LinearSegmentedColormap
 from matplotlib.patches import Patch
 
+from .metrics import RANDOM_STATES
 from .strategies import STRATEGIES
 from .verdict import BASELINE, by_device, winners
 
@@ -18,9 +19,15 @@ def print_tables(result, log=print):
     lg, eq = result["logical"], result["equivalent"]
     log(f"\nBefore hardware ({result['circuit']}, {result['num_qubits']} qubits)")
     log(f"  {'strategy':<12} {'2Q':>5} {'T/non-Cliff':>11} {'depth':>6}  verified")
+    randomized = False
     for s, m in lg.items():
+        check = eq.get(s, {})
+        star = "*" if check.get("method", "exact") != "exact" else ""
+        randomized = randomized or bool(star)
         log(f"  {STRATEGIES[s][0]:<12} {m['two_q']:>5} {m['t']:>11} {m['depth']:>6}  "
-            f"{'yes' if eq.get(s) else 'NO'}")
+            f"{'yes' if check.get('ok') else 'NO'}{star}")
+    if randomized:
+        log(f"  * randomized check on {RANDOM_STATES} random states")
 
     log("\nAfter hardware compilation")
     log(f"  {'device':<16} {'native':<7} {'topology':<15} {'strategy':<12} "

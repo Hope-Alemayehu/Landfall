@@ -1,0 +1,21 @@
+# Dependencies for the website (Vercel). Qollab ignores this file and installs requirements.txt.
+# Vercel prefers pyproject.toml over requirements.txt, and the declared entrypoint below stops it
+# from treating the Qollab entry point (main.py) as the web app.
+[project]
+name = "landfall"
+version = "0.1.0"
+description = "See what your circuit optimizations look like after they hit the hardware."
+requires-python = "==3.12.*"
+dependencies = [
+    "fastapi==0.143.0",
+    "qiskit==2.5.2",
+    "qiskit-ibm-runtime==0.50.0",
+    "qiskit-qasm3-import==0.6.0",
+    "pyzx==0.10.7",
+    "numpy==2.5.4",
+    "scipy==1.18.1",
+    "rustworkx==0.18.1",
+]
+
+[tool.vercel]
+entrypoint = "api.index:app"

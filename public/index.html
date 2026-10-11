@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Landfall</title>
+<meta name="description" content="See what your circuit optimizations look like after they hit the hardware.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='15' fill='%237a4a2a'/%3E%3Cpath d='M16 7l7.8 4.5v9L16 25l-7.8-4.5v-9z' fill='none' stroke='%23fffcf7' stroke-width='2.4'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="masthead">
+  <div class="wrap">
+    <p class="brand">
+      <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="15"/><path d="M16 7l7.8 4.5v9L16 25l-7.8-4.5v-9z"/></svg>
+      <span>Landfall</span>
+    </p>
+    <h1 class="tagline">See what your circuit optimizations look like after they hit the hardware.</h1>
+    <p class="lede">One circuit, four optimization strategies, five real devices. Every optimized circuit is verified
+      equivalent to the original, then compiled with routing and native gates, so you can see which strategy
+      actually wins where, and why.</p>
+  </div>
+</header>
+
+<main id="main" class="wrap">
+  <section class="panel input-panel" aria-labelledby="input-title">
+    <h2 id="input-title" class="section-title">Circuit and devices</h2>
+
+    <div class="field">
+      <span class="field-label" id="presets-label">Presets</span>
+      <div class="chips" id="presets" role="group" aria-labelledby="presets-label"></div>
+    </div>
+
+    <div class="field">
+      <div class="tabs" role="tablist" aria-label="Your own circuit">
+        <button type="button" role="tab" id="tab-qasm" aria-selected="true" aria-controls="panel-qasm">QASM</button>
+        <button type="button" role="tab" id="tab-qiskit" aria-selected="false" aria-controls="panel-qiskit" tabindex="-1">Qiskit</button>
+      </div>
+      <div class="tabpanel" id="panel-qasm" role="tabpanel" aria-labelledby="tab-qasm">
+        <div class="dropzone" id="dropzone">
+          <textarea id="qasm" spellcheck="false" autocomplete="off" aria-label="OpenQASM 2 or 3 source"
+            placeholder="OPENQASM 2.0;&#10;include &quot;qelib1.inc&quot;;&#10;qreg q[3];&#10;h q[0];&#10;cx q[0],q[1];&#10;t q[1];&#10;ccx q[0],q[1],q[2];"></textarea>
+          <p class="hint">OpenQASM 2 or 3, up to 12 qubits. Drop a <code>.qasm</code> file here, or
+            <label class="file-pick">choose a file<input type="file" id="qasm-file" accept=".qasm,.txt,text/plain"></label>.</p>
+        </div>
+      </div>
+      <div class="tabpanel" id="panel-qiskit" role="tabpanel" aria-labelledby="tab-qiskit" hidden>
+        <textarea id="qiskit" spellcheck="false" autocomplete="off" aria-label="Qiskit circuit code"
+          aria-describedby="qiskit-hint"></textarea>
+        <p class="hint" id="qiskit-hint">The code is read, never run: one <code>QuantumCircuit(n)</code>, standard gate
+          calls, <code>for i in range(...)</code> loops and arithmetic with <code>pi</code>.</p>
+        <details class="subset">
+          <summary>Supported Qiskit subset</summary>
+          <ul>
+            <li>Imports: <code>from qiskit import QuantumCircuit</code>, <code>from qiskit.circuit.library import QFTGate</code>,
+              <code>pi</code> from <code>math</code> or <code>numpy</code> (<code>import math</code> and <code>import numpy as np</code> work too).</li>
+            <li>One circuit: <code>qc = QuantumCircuit(n)</code> or <code>QuantumCircuit(n, m)</code>, any variable name, up to 12 qubits.</li>
+            <li>Gates: <code>h x y z s sdg t tdg sx rx ry rz p u cx cy cz ch cp crx cry crz swap ccx cswap rxx ryy rzz</code>,
+              with a qubit, a list or a <code>range(...)</code>; and <code>qc.append(QFTGate(k), range(k))</code>.</li>
+            <li><code>for</code> loops over <code>range(...)</code> (nested is fine), numeric variables, and <code>+ - * / // % **</code> with <code>pi</code>.</li>
+            <li><code>measure</code>, <code>measure_all</code>, <code>barrier</code>, <code>draw()</code> and <code>print(qc)</code> are accepted and ignored.</li>
+            <li>Anything else (other imports, functions, <code>while</code>, <code>if</code>) is rejected with the line number.
+              For those, paste <code>qasm2.dumps(qc)</code> into the QASM tab instead.</li>
+          </ul>
+        </details>
+      </div>
+    </div>
+
+    <div class="field">
+      <span class="field-label" id="devices-label">Devices</span>
+      <div class="devices" id="devices" role="group" aria-labelledby="devices-label"></div>
+    </div>
+
+    <div class="actions">
+      <button type="button" class="btn-primary" id="analyze">Analyze</button>
+      <span class="kbd">or <kbd>Ctrl</kbd> + <kbd>Enter</kbd></span>
+    </div>
+    <p class="status" id="status" role="status" aria-live="polite"></p>
+    <div class="error" id="error" role="alert" hidden></div>
+  </section>
+
+  <div id="results" class="results" hidden>
+    <section class="verdict" aria-labelledby="verdict-title">
+      <h2 id="verdict-title" class="visually-hidden">Verdict</h2>
+      <p class="example-note" id="example-note" hidden>Precomputed example: the adder preset on all five devices,
+        so the page opens instantly. Press Analyze to run it live.</p>
+      <p class="meta" id="circuit-meta"></p>
+      <p class="headline" id="headline"></p>
+      <ul class="findings" id="findings"></ul>
+      <ul class="device-verdicts" id="device-verdicts"></ul>
+      <p class="qollab-note">Want measured numbers, not just estimates? Run the one-job hardware check
+        <a class="qollab-link" href="#">on Qollab</a>, with IBM noise models and IonQ simulators.</p>
+    </section>
+
+    <section class="panel" aria-labelledby="grid-title">
+      <div class="section-head">
+        <h2 id="grid-title" class="section-title">Where each strategy lands</h2>
+        <p class="section-note">Estimated success compared with Qiskit O3, in percentage points. Select a cell to see it on the chip.</p>
+      </div>
+      <div class="grid" id="grid"></div>
+      <div class="scale" id="scale" aria-hidden="true"></div>
+    </section>
+
+    <section class="panel chip-panel" aria-labelledby="chip-title">
+      <div class="section-head">
+        <h2 id="chip-title" class="section-title">On the chip</h2>
+        <p class="section-note">Filled qubits are the ones the compiled circuit uses. Couplers that carry more two-qubit
+          gates are drawn thicker and darker. Switch strategies to watch the footprint change.</p>
+      </div>
+      <div class="chip-controls">
+        <div class="seg" id="chip-strategies" role="group" aria-label="Strategy shown on the chip"></div>
+        <label class="check"><input type="checkbox" id="whole-chip"> <span>Show whole chip</span></label>
+      </div>
+      <figure class="chip-figure">
+        <svg class="chip" id="chip" role="img" aria-labelledby="chip-caption"></svg>
+        <figcaption id="chip-caption" class="chip-caption"></figcaption>
+      </figure>
+      <div class="chip-legend" aria-hidden="true">
+        <span><i class="lg-q used"></i>qubit in use</span>
+        <span><i class="lg-q"></i>idle qubit</span>
+        <span><i class="lg-edge thin"></i><i class="lg-edge thick"></i>more two-qubit gates on a coupler</span>
+      </div>
+    </section>
+
+    <section class="panel" aria-labelledby="cost-title">
+      <div class="section-head">
+        <h2 id="cost-title" class="section-title">Two-qubit gates after compilation</h2>
+        <p class="section-note">Solid is the circuit's own two-qubit gates; hatched is routing overhead, the extra gates
+          limited connectivity adds. Same scale on every device.</p>
+      </div>
+      <div class="legend" id="bars-legend"></div>
+      <div class="bars" id="bars"></div>
+    </section>
+
+    <section class="panel" aria-labelledby="cards-title">
+      <div class="section-head">
+        <h2 id="cards-title" class="section-title">Before hardware</h2>
+        <p class="section-note">Each strategy's circuit before compilation, against the input circuit.</p>
+      </div>
+      <div class="cards" id="cards"></div>
+    </section>
+
+    <section class="panel" aria-labelledby="output-title">
+      <div class="section-head">
+        <h2 id="output-title" class="section-title">Output</h2>
+      </div>
+      <div class="outputs">
+        <div class="out-block">
+          <div class="out-head">
+            <h3>Optimized QASM</h3>
+            <div class="seg seg-small" id="opt-strategies" role="group" aria-label="Optimized circuit to show"></div>
+          </div>
+          <pre class="code" id="opt-code" tabindex="0" aria-label="Optimized QASM"></pre>
+          <div class="out-actions">
+            <button type="button" class="btn" id="opt-copy">Copy</button>
+            <button type="button" class="btn" id="opt-download">Download</button>
+          </div>
+        </div>
+        <div class="out-block">
+          <div class="out-head">
+            <h3>Compiled QASM</h3>
+            <p class="out-for" id="compiled-for"></p>
+          </div>
+          <pre class="code" id="compiled-code" tabindex="0" aria-label="Compiled QASM"></pre>
+          <p class="omitted" id="compiled-omitted" hidden>Compiled QASM omitted for size; download the optimized QASM or run locally.</p>
+          <div class="out-actions" id="compiled-actions">
+            <button type="button" class="btn" id="compiled-copy">Copy</button>
+            <button type="button" class="btn" id="compiled-download">Download</button>
+          </div>
+        </div>
+      </div>
+      <div class="report-actions">
+        <button type="button" class="btn" id="download-json">Download JSON report</button>
+        <span class="hint">The same report Qollab produces.</span>
+      </div>
+      <details class="table-view">
+        <summary>All numbers as a table</summary>
+        <div class="table-wrap"><table id="table"></table></div>
+      </details>
+    </section>
+  </div>
+
+  <section class="howto" aria-labelledby="howto-title">
+    <h2 id="howto-title" class="section-title">How to read this</h2>
+    <div class="howto-grid">
+      <article>
+        <h3>Routing</h3>
+        <p>Real chips connect only some qubit pairs. When two qubits that must interact are not neighbors, the
+          compiler inserts SWAPs to bring them together, and each SWAP costs three two-qubit gates. That overhead
+          can erase what an optimizer saved.</p>
+      </article>
+      <article>
+        <h3>Native gates</h3>
+        <p>Each chip has its own two-qubit gate: CX on Falcon, ECR on Eagle, CZ on Heron and Nighthawk, ZZ on IonQ.
+          Every circuit is translated into that gate set, so the same circuit costs different amounts on different
+          hardware.</p>
+      </article>
+      <article>
+        <h3>T-count</h3>
+        <p>T gates and other non-Clifford rotations are the expensive part of fault-tolerant quantum computing, so
+          cutting them matters for the future. On today's noisy chips, two-qubit gates usually dominate the error,
+          so a T-count win alone does not guarantee a better run.</p>
+      </article>
+      <article>
+        <h3>Estimated success</h3>
+        <p>For each compiled circuit, Landfall multiplies the chance that every gate and every readout succeeds,
+          using the device's calibration data. It ignores idle decoherence and crosstalk, so differences under half
+          a point count as ties.</p>
+      </article>
+      <article>
+        <h3>Why gate count is not the whole story</h3>
+        <p>Fewer gates usually wins, but not always. The compiler places your circuit on specific qubits, and qubits
+          differ in quality. A circuit with more two-qubit gates can land on better qubits and come out ahead, so
+          Landfall ranks by estimated success, not by count.</p>
+      </article>
+    </div>
+  </section>
+</main>
+
+<footer class="footer">
+  <div class="wrap footer-inner">
+    <p class="footer-brand">Landfall, built for the Qollab x IonQ hackathon.</p>
+    <nav aria-label="Links">
+      <a class="qollab-link" href="#">Run it on Qollab</a>
+      <a href="https://github.com/Hope-Alemayehu/Landfall">GitHub repository</a>
+      <a href="https://zxscope.vercel.app">ZXScope</a>
+      <a href="https://github.com/Hope-Alemayehu/Landfall/blob/main/LICENSE">MIT license</a>
+    </nav>
+  </div>
+</footer>
+
+<div class="tooltip" id="tooltip" role="tooltip" hidden></div>
+<script src="app.js"></script>
+</body>
+</html>

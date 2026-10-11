@@ -1,11 +1,14 @@
 """Preset benchmark circuits and QASM loading."""
 import random
+import re
 
 from qiskit import QuantumCircuit, transpile
+from qiskit.circuit import ControlFlowOp
 from qiskit.circuit.library import QFTGate
 
 # Gate set that both Qiskit and PyZX understand well.
 ZX_FRIENDLY = ["cx", "cz", "h", "x", "z", "s", "sdg", "t", "tdg", "rz"]
+MAX_QUBITS = 12  # one cap for Qollab, the Python API and the website
 
 PRESETS = {
     "qft5": "5-qubit Quantum Fourier Transform (structured, many small rotations)",
@@ -92,19 +95,53 @@ def normalize(qc: QuantumCircuit) -> QuantumCircuit:
     return out
 
 
-def load(preset: str = "qft5", qasm: str = "") -> QuantumCircuit:
-    """Return a normalized circuit from a preset name or an OpenQASM 2 string."""
-    if qasm and qasm.strip():
-        text = qasm.strip()
-        if "OPENQASM" not in text:
-            text = 'OPENQASM 2.0;\ninclude "qelib1.inc";\n' + text
-        qc = QuantumCircuit.from_qasm_str(text)
-        qc.name = "custom"
+def from_qasm(qasm: str) -> QuantumCircuit:
+    """Parse OpenQASM 2 or 3 (a header-less body is read as OpenQASM 2)."""
+    text = qasm.strip()
+    if re.search(r"OPENQASM\s+3", text):
+        from qiskit import qasm3
+        qc = qasm3.loads(text)
     else:
-        key = preset.strip().lower()
-        if key not in _BUILDERS:
-            raise ValueError(f"Unknown preset '{preset}'. Choose one of: {', '.join(PRESETS)}")
-        qc = _BUILDERS[key]()
-    if qc.num_qubits > 12:
-        raise ValueError("Landfall checks exact equivalence, so circuits are limited to 12 qubits.")
-    return normalize(qc)
+        if "OPENQASM" not in text:
+            text = 'OPENQASM 2.0; include "qelib1.inc"; ' + text  # one line keeps error line numbers right
+        qc = QuantumCircuit.from_qasm_str(text)
+    qc.name = "custom"
+    return qc
+
+
+def from_preset(preset: str) -> QuantumCircuit:
+    key = preset.strip().lower()
+    if key not in _BUILDERS:
+        raise ValueError(f"Unknown preset '{preset}'. Choose one of: {', '.join(PRESETS)}")
+    return _BUILDERS[key]()
+
+
+def prepare(qc: QuantumCircuit) -> QuantumCircuit:
+    """Check the size limit and normalize; every analysis input goes through here."""
+    if qc.num_qubits > MAX_QUBITS:
+        raise ValueError(f"Landfall checks exact equivalence, so circuits are limited to {MAX_QUBITS} qubits.")
+    if qc.num_qubits == 0:
+        raise ValueError("The circuit has no qubits.")
+    classical = {i.operation.name for i in qc.data
+                 if isinstance(i.operation, ControlFlowOp) or (i.clbits and i.operation.name != "measure")}
+    if classical:
+        raise ValueError(_unsupported(classical))
+    out = normalize(qc)
+    if out.parameters:
+        names = ", ".join(sorted(p.name for p in out.parameters))
+        raise ValueError(f"The circuit has unbound parameters ({names}); give them numeric values.")
+    unsupported = {i.operation.name for i in out.data} - set(ZX_FRIENDLY)
+    if unsupported:
+        raise ValueError(_unsupported(unsupported))
+    return out
+
+
+def _unsupported(names):
+    return (f"Unsupported operation(s): {', '.join(sorted(names))}. Landfall analyzes unitary gate circuits, "
+            "without classical control or mid-circuit measurement.")
+
+
+def load(preset: str = "qft5", qasm: str = "") -> QuantumCircuit:
+    """Return a normalized circuit from a preset name or an OpenQASM 2/3 string."""
+    qc = from_qasm(qasm) if qasm and qasm.strip() else from_preset(preset)
+    return prepare(qc)
